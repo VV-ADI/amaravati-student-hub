@@ -147,6 +147,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
 
       if (error) {
+        // Handle specific error messages
+        if (error.message.includes("duplicate key") || error.message.includes("already exists") || error.message.includes("Registration number")) {
+          return { error: "This registration number is already registered. Please use a different one or contact admin." };
+        }
+        if (error.message.includes("User already registered")) {
+          return { error: "This email is already registered. Please login or use a different email." };
+        }
         return { error: error.message };
       }
 
