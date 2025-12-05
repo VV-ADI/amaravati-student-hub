@@ -1,35 +1,38 @@
-import { useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { useStudentRecord } from "@/hooks/useStudentRecord";
 
 export default function StudentAttendance() {
-  const { user } = useAuth();
-  const [attendanceData, setAttendanceData] = useState<any>(null);
-
-  useEffect(() => {
-    const studentRecords = JSON.parse(localStorage.getItem("studentRecords") || "[]");
-    const studentData = studentRecords.find((s: any) => s.id === user?.id);
-
-    if (studentData) {
-      setAttendanceData(studentData.attendance);
-    }
-  }, [user]);
+  const { record, loading } = useStudentRecord();
 
   const calculateOverallAttendance = () => {
-    if (!attendanceData) return 0;
+    if (!record || !record.attendance) return "0.0";
 
     let totalPresent = 0;
     let totalClasses = 0;
 
-    Object.values(attendanceData).forEach((data: any) => {
+    Object.values(record.attendance).forEach((data) => {
       totalPresent += data.present;
       totalClasses += data.total;
     });
 
+    if (totalClasses === 0) return "0.0";
     return ((totalPresent / totalClasses) * 100).toFixed(1);
   };
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  const attendanceData = record?.attendance || {};
+  const hasData = Object.keys(attendanceData).length > 0;
 
   return (
     <DashboardLayout>
@@ -50,12 +53,12 @@ export default function StudentAttendance() {
                 {calculateOverallAttendance()}%
               </p>
               <p className="text-muted-foreground">
-                {attendanceData &&
+                {hasData &&
                   `${Object.values(attendanceData).reduce(
-                    (acc: number, curr: any) => acc + curr.present,
+                    (acc, curr) => acc + curr.present,
                     0
                   )} / ${Object.values(attendanceData).reduce(
-                    (acc: number, curr: any) => acc + curr.total,
+                    (acc, curr) => acc + curr.total,
                     0
                   )} classes attended`}
               </p>
@@ -69,10 +72,16 @@ export default function StudentAttendance() {
             <CardTitle className="font-serif">Subject-wise Attendance</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-6">
-              {attendanceData &&
-                Object.entries(attendanceData).map(([subject, data]: [string, any]) => {
-                  const percentage = ((data.present / data.total) * 100).toFixed(1);
+            {!hasData ? (
+              <p className="text-muted-foreground text-center py-8">
+                No attendance records available yet.
+              </p>
+            ) : (
+              <div className="space-y-6">
+                {Object.entries(attendanceData).map(([subject, data]) => {
+                  const percentage = data.total > 0 
+                    ? ((data.present / data.total) * 100).toFixed(1) 
+                    : "0.0";
                   const isLow = parseFloat(percentage) < 75;
 
                   return (
@@ -104,7 +113,8 @@ export default function StudentAttendance() {
                     </div>
                   );
                 })}
-            </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

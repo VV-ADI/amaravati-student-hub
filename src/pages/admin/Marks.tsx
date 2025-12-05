@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -18,67 +19,153 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Plus } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+
+interface MarksData {
+  [subject: string]: { internal1: number; internal2: number; external: number };
+}
+
+interface Student {
+  id: string;
+  name: string;
+  reg_number: string;
+  marks: MarksData;
+}
 
 export default function Marks() {
-  const [students, setStudents] = useState<any[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
   const [selectedStudent, setSelectedStudent] = useState("");
-  const [studentData, setStudentData] = useState<any>(null);
+  const [studentData, setStudentData] = useState<Student | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [newSubject, setNewSubject] = useState("");
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   useEffect(() => {
     loadStudents();
   }, []);
 
-  const loadStudents = () => {
-    const records = JSON.parse(localStorage.getItem("studentRecords") || "[]");
-    setStudents(records);
+  const loadStudents = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("student_records")
+        .select("id, name, reg_number, marks")
+        .order("name");
+
+      if (error) throw error;
+      
+      const formattedData = (data || []).map(s => ({
+        ...s,
+        marks: (s.marks as MarksData) || {}
+      }));
+      
+      setStudents(formattedData);
+    } catch (error: any) {
+      toast.error("Failed to load students: " + error.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const loadStudentData = (studentId: string) => {
-    const records = JSON.parse(localStorage.getItem("studentRecords") || "[]");
-    const student = records.find((s: any) => s.id === studentId);
-    setStudentData(student);
+    const student = students.find(s => s.id === studentId);
+    setStudentData(student || null);
   };
 
-  const updateMarks = (subject: string, field: string, value: number) => {
+  const updateMarks = async (subject: string, field: string, value: number) => {
     if (!studentData) return;
 
-    const updatedData = {
-      ...studentData,
-      marks: {
-        ...studentData.marks,
-        [subject]: {
-          ...studentData.marks[subject],
-          [field]: value,
-        },
+    const updatedMarks = {
+      ...studentData.marks,
+      [subject]: {
+        ...studentData.marks[subject],
+        [field]: value,
       },
     };
 
-    setStudentData(updatedData);
+    try {
+      const { error } = await supabase
+        .from("student_records")
+        .update({ marks: updatedMarks })
+        .eq("id", studentData.id);
 
-    const records = JSON.parse(localStorage.getItem("studentRecords") || "[]");
-    const updatedRecords = records.map((s: any) =>
-      s.id === studentData.id ? updatedData : s
-    );
-    localStorage.setItem("studentRecords", JSON.stringify(updatedRecords));
-    toast.success("Marks updated successfully!");
+      if (error) throw error;
+
+      setStudentData({ ...studentData, marks: updatedMarks });
+      setStudents(students.map(s => 
+        s.id === studentData.id ? { ...s, marks: updatedMarks } : s
+      ));
+      
+      toast.success("Marks updated!");
+    } catch (error: any) {
+      toast.error("Failed to update: " + error.message);
+    }
+  };
+
+  const addSubject = async () => {
+    if (!studentData || !newSubject.trim()) return;
+
+    const updatedMarks = {
+      ...studentData.marks,
+      [newSubject.trim()]: { internal1: 0, internal2: 0, external: 0 },
+    };
+
+    try {
+      const { error } = await supabase
+        .from("student_records")
+        .update({ marks: updatedMarks })
+        .eq("id", studentData.id);
+
+      if (error) throw error;
+
+      setStudentData({ ...studentData, marks: updatedMarks });
+      setStudents(students.map(s => 
+        s.id === studentData.id ? { ...s, marks: updatedMarks } : s
+      ));
+      
+      setNewSubject("");
+      setDialogOpen(false);
+      toast.success("Subject added!");
+    } catch (error: any) {
+      toast.error("Failed to add subject: " + error.message);
+    }
   };
 
   const calculateCGPA = () => {
-    if (!studentData) return 0;
+    if (!studentData || !studentData.marks) return "0.00";
 
     const subjects = Object.keys(studentData.marks);
+    if (subjects.length === 0) return "0.00";
+
     let totalGradePoints = 0;
 
     subjects.forEach((subject) => {
       const marks = studentData.marks[subject];
       const total = marks.internal1 + marks.internal2 + marks.external;
-      const gradePoint = (total / 125) * 10; // Assuming 125 is max marks
+      const gradePoint = (total / 125) * 10;
       totalGradePoints += gradePoint;
     });
 
     return (totalGradePoints / subjects.length).toFixed(2);
   };
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -109,7 +196,7 @@ export default function Marks() {
                   <SelectContent>
                     {students.map((student) => (
                       <SelectItem key={student.id} value={student.id}>
-                        {student.name} ({student.regNumber})
+                        {student.name} ({student.reg_number})
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -122,65 +209,100 @@ export default function Marks() {
         {studentData && (
           <>
             <Card>
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="font-serif">Marks for {studentData.name}</CardTitle>
+                <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button size="sm">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Subject
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Add New Subject</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 pt-4">
+                      <div className="space-y-2">
+                        <Label>Subject Name</Label>
+                        <Input
+                          value={newSubject}
+                          onChange={(e) => setNewSubject(e.target.value)}
+                          placeholder="e.g., Data Structures"
+                        />
+                      </div>
+                      <Button onClick={addSubject} className="w-full">
+                        Add Subject
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Subject</TableHead>
-                      <TableHead>Internal 1 (25)</TableHead>
-                      <TableHead>Internal 2 (25)</TableHead>
-                      <TableHead>External (75)</TableHead>
-                      <TableHead>Total (125)</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {Object.entries(studentData.marks).map(([subject, marks]: [string, any]) => {
-                      const total = marks.internal1 + marks.internal2 + marks.external;
-                      return (
-                        <TableRow key={subject}>
-                          <TableCell className="font-medium">{subject}</TableCell>
-                          <TableCell>
-                            <Input
-                              type="number"
-                              max="25"
-                              value={marks.internal1}
-                              onChange={(e) =>
-                                updateMarks(subject, "internal1", parseInt(e.target.value) || 0)
-                              }
-                              className="w-20"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              type="number"
-                              max="25"
-                              value={marks.internal2}
-                              onChange={(e) =>
-                                updateMarks(subject, "internal2", parseInt(e.target.value) || 0)
-                              }
-                              className="w-20"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              type="number"
-                              max="75"
-                              value={marks.external}
-                              onChange={(e) =>
-                                updateMarks(subject, "external", parseInt(e.target.value) || 0)
-                              }
-                              className="w-20"
-                            />
-                          </TableCell>
-                          <TableCell className="font-semibold">{total}</TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+                {Object.keys(studentData.marks).length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">
+                    No subjects added yet. Click "Add Subject" to get started.
+                  </p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Subject</TableHead>
+                        <TableHead>Internal 1 (25)</TableHead>
+                        <TableHead>Internal 2 (25)</TableHead>
+                        <TableHead>External (75)</TableHead>
+                        <TableHead>Total (125)</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {Object.entries(studentData.marks).map(([subject, marks]) => {
+                        const total = marks.internal1 + marks.internal2 + marks.external;
+                        return (
+                          <TableRow key={subject}>
+                            <TableCell className="font-medium">{subject}</TableCell>
+                            <TableCell>
+                              <Input
+                                type="number"
+                                min="0"
+                                max="25"
+                                value={marks.internal1}
+                                onChange={(e) =>
+                                  updateMarks(subject, "internal1", parseInt(e.target.value) || 0)
+                                }
+                                className="w-20"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                type="number"
+                                min="0"
+                                max="25"
+                                value={marks.internal2}
+                                onChange={(e) =>
+                                  updateMarks(subject, "internal2", parseInt(e.target.value) || 0)
+                                }
+                                className="w-20"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                type="number"
+                                min="0"
+                                max="75"
+                                value={marks.external}
+                                onChange={(e) =>
+                                  updateMarks(subject, "external", parseInt(e.target.value) || 0)
+                                }
+                                className="w-20"
+                              />
+                            </TableCell>
+                            <TableCell className="font-semibold">{total}</TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                )}
               </CardContent>
             </Card>
 

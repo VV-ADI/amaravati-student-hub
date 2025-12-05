@@ -1,6 +1,4 @@
-import { useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -10,28 +8,21 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useStudentRecord } from "@/hooks/useStudentRecord";
 
 export default function StudentMarks() {
-  const { user } = useAuth();
-  const [marksData, setMarksData] = useState<any>(null);
-
-  useEffect(() => {
-    const studentRecords = JSON.parse(localStorage.getItem("studentRecords") || "[]");
-    const studentData = studentRecords.find((s: any) => s.id === user?.id);
-
-    if (studentData) {
-      setMarksData(studentData.marks);
-    }
-  }, [user]);
+  const { record, loading } = useStudentRecord();
 
   const calculateSGPA = () => {
-    if (!marksData) return 0;
+    if (!record || !record.marks) return "0.00";
 
-    const subjects = Object.keys(marksData);
+    const subjects = Object.keys(record.marks);
+    if (subjects.length === 0) return "0.00";
+
     let totalGradePoints = 0;
 
     subjects.forEach((subject) => {
-      const marks = marksData[subject];
+      const marks = record.marks[subject];
       const total = marks.internal1 + marks.internal2 + marks.external;
       const gradePoint = (total / 125) * 10;
       totalGradePoints += gradePoint;
@@ -49,6 +40,19 @@ export default function StudentMarks() {
     if (percentage >= 50) return "B";
     return "C";
   };
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  const marksData = record?.marks || {};
+  const hasData = Object.keys(marksData).length > 0;
 
   return (
     <DashboardLayout>
@@ -79,20 +83,24 @@ export default function StudentMarks() {
             <CardTitle className="font-serif">Subject-wise Marks</CardTitle>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Subject</TableHead>
-                  <TableHead>Internal 1</TableHead>
-                  <TableHead>Internal 2</TableHead>
-                  <TableHead>External</TableHead>
-                  <TableHead>Total</TableHead>
-                  <TableHead>Grade</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {marksData &&
-                  Object.entries(marksData).map(([subject, marks]: [string, any]) => {
+            {!hasData ? (
+              <p className="text-muted-foreground text-center py-8">
+                No marks records available yet.
+              </p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Subject</TableHead>
+                    <TableHead>Internal 1</TableHead>
+                    <TableHead>Internal 2</TableHead>
+                    <TableHead>External</TableHead>
+                    <TableHead>Total</TableHead>
+                    <TableHead>Grade</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {Object.entries(marksData).map(([subject, marks]) => {
                     const total = marks.internal1 + marks.internal2 + marks.external;
                     const grade = getGrade(total);
 
@@ -111,8 +119,9 @@ export default function StudentMarks() {
                       </TableRow>
                     );
                   })}
-              </TableBody>
-            </Table>
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
       </div>
