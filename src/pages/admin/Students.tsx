@@ -22,13 +22,24 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, Edit, Trash2, Search } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Student {
   id: string;
-  regNumber: string;
+  user_id: string;
+  reg_number: string;
   name: string;
+  department: string | null;
+  semester: number | null;
+  email: string | null;
+  phone: string | null;
+}
+
+interface FormData {
+  name: string;
+  reg_number: string;
   department: string;
-  semester: number;
+  semester: string;
   email: string;
   phone: string;
 }
@@ -38,75 +49,122 @@ export default function Students() {
   const [searchQuery, setSearchQuery] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
-  const [formData, setFormData] = useState<Partial<Student>>({});
+  const [formData, setFormData] = useState<FormData>({
+    name: "",
+    reg_number: "",
+    department: "",
+    semester: "",
+    email: "",
+    phone: "",
+  });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadStudents();
   }, []);
 
-  const loadStudents = () => {
-    const records = JSON.parse(localStorage.getItem("studentRecords") || "[]");
-    setStudents(records);
-  };
+  const loadStudents = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("student_records")
+        .select("*")
+        .order("name");
 
-  const handleSave = () => {
-    const records = JSON.parse(localStorage.getItem("studentRecords") || "[]");
-    
-    if (editingStudent) {
-      // Update existing student
-      const updatedRecords = records.map((s: Student) =>
-        s.id === editingStudent.id ? { ...s, ...formData } : s
-      );
-      localStorage.setItem("studentRecords", JSON.stringify(updatedRecords));
-      toast.success("Student updated successfully!");
-    } else {
-      // Add new student
-      const newStudent = {
-        ...formData,
-        id: `student${Date.now()}`,
-        attendance: {},
-        marks: {},
-      };
-      records.push(newStudent);
-      localStorage.setItem("studentRecords", JSON.stringify(records));
-      
-      // Also add to users for login
-      const users = JSON.parse(localStorage.getItem("users") || "[]");
-      users.push({
-        ...newStudent,
-        password: "student123",
-        role: "student",
-      });
-      localStorage.setItem("users", JSON.stringify(users));
-      
-      toast.success("Student added successfully!");
+      if (error) throw error;
+      setStudents(data || []);
+    } catch (error: any) {
+      toast.error("Failed to load students: " + error.message);
+    } finally {
+      setLoading(false);
     }
-
-    loadStudents();
-    setDialogOpen(false);
-    setEditingStudent(null);
-    setFormData({});
   };
 
-  const handleDelete = (id: string) => {
-    const records = JSON.parse(localStorage.getItem("studentRecords") || "[]");
-    const updatedRecords = records.filter((s: Student) => s.id !== id);
-    localStorage.setItem("studentRecords", JSON.stringify(updatedRecords));
-    
-    const users = JSON.parse(localStorage.getItem("users") || "[]");
-    const updatedUsers = users.filter((u: any) => u.id !== id);
-    localStorage.setItem("users", JSON.stringify(updatedUsers));
-    
-    loadStudents();
-    toast.success("Student deleted successfully!");
+  const handleSave = async () => {
+    try {
+      if (editingStudent) {
+        // Update existing student
+        const { error } = await supabase
+          .from("student_records")
+          .update({
+            name: formData.name,
+            reg_number: formData.reg_number,
+            department: formData.department || null,
+            semester: formData.semester ? parseInt(formData.semester) : null,
+            email: formData.email || null,
+            phone: formData.phone || null,
+          })
+          .eq("id", editingStudent.id);
+
+        if (error) throw error;
+        toast.success("Student updated successfully!");
+      } else {
+        // For new students created by admin, we need a user_id
+        // This is a simplified approach - in production you'd want to create the auth user first
+        const { error } = await supabase
+          .from("student_records")
+          .insert({
+            user_id: crypto.randomUUID(), // Placeholder - ideally linked to auth user
+            name: formData.name,
+            reg_number: formData.reg_number,
+            department: formData.department || null,
+            semester: formData.semester ? parseInt(formData.semester) : null,
+            email: formData.email || null,
+            phone: formData.phone || null,
+            attendance: {},
+            marks: {},
+          });
+
+        if (error) throw error;
+        toast.success("Student added successfully!");
+      }
+
+      loadStudents();
+      setDialogOpen(false);
+      setEditingStudent(null);
+      setFormData({
+        name: "",
+        reg_number: "",
+        department: "",
+        semester: "",
+        email: "",
+        phone: "",
+      });
+    } catch (error: any) {
+      toast.error("Failed to save: " + error.message);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from("student_records")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+      loadStudents();
+      toast.success("Student deleted successfully!");
+    } catch (error: any) {
+      toast.error("Failed to delete: " + error.message);
+    }
   };
 
   const filteredStudents = students.filter(
     (s) =>
       s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.regNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.department.toLowerCase().includes(searchQuery.toLowerCase())
+      s.reg_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (s.department && s.department.toLowerCase().includes(searchQuery.toLowerCase()))
   );
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -118,7 +176,17 @@ export default function Students() {
           </div>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={() => { setEditingStudent(null); setFormData({}); }}>
+              <Button onClick={() => { 
+                setEditingStudent(null); 
+                setFormData({
+                  name: "",
+                  reg_number: "",
+                  department: "",
+                  semester: "",
+                  email: "",
+                  phone: "",
+                });
+              }}>
                 <Plus className="mr-2 h-4 w-4" />
                 Add Student
               </Button>
@@ -138,16 +206,16 @@ export default function Students() {
                     <Label htmlFor="name">Full Name</Label>
                     <Input
                       id="name"
-                      value={formData.name || ""}
+                      value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="regNumber">Registration Number</Label>
+                    <Label htmlFor="reg_number">Registration Number</Label>
                     <Input
-                      id="regNumber"
-                      value={formData.regNumber || ""}
-                      onChange={(e) => setFormData({ ...formData, regNumber: e.target.value })}
+                      id="reg_number"
+                      value={formData.reg_number}
+                      onChange={(e) => setFormData({ ...formData, reg_number: e.target.value })}
                     />
                   </div>
                 </div>
@@ -156,7 +224,7 @@ export default function Students() {
                     <Label htmlFor="department">Department</Label>
                     <Input
                       id="department"
-                      value={formData.department || ""}
+                      value={formData.department}
                       onChange={(e) => setFormData({ ...formData, department: e.target.value })}
                     />
                   </div>
@@ -165,8 +233,8 @@ export default function Students() {
                     <Input
                       id="semester"
                       type="number"
-                      value={formData.semester || ""}
-                      onChange={(e) => setFormData({ ...formData, semester: parseInt(e.target.value) })}
+                      value={formData.semester}
+                      onChange={(e) => setFormData({ ...formData, semester: e.target.value })}
                     />
                   </div>
                 </div>
@@ -176,7 +244,7 @@ export default function Students() {
                     <Input
                       id="email"
                       type="email"
-                      value={formData.email || ""}
+                      value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     />
                   </div>
@@ -184,7 +252,7 @@ export default function Students() {
                     <Label htmlFor="phone">Phone</Label>
                     <Input
                       id="phone"
-                      value={formData.phone || ""}
+                      value={formData.phone}
                       onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     />
                   </div>
@@ -216,51 +284,62 @@ export default function Students() {
             </div>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Reg Number</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Department</TableHead>
-                  <TableHead>Semester</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredStudents.map((student) => (
-                  <TableRow key={student.id}>
-                    <TableCell className="font-medium">{student.regNumber}</TableCell>
-                    <TableCell>{student.name}</TableCell>
-                    <TableCell>{student.department}</TableCell>
-                    <TableCell>{student.semester}</TableCell>
-                    <TableCell>{student.email}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => {
-                            setEditingStudent(student);
-                            setFormData(student);
-                            setDialogOpen(true);
-                          }}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleDelete(student.id)}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </TableCell>
+            {filteredStudents.length === 0 ? (
+              <p className="text-muted-foreground text-center py-8">No students found.</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Reg Number</TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Department</TableHead>
+                    <TableHead>Semester</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {filteredStudents.map((student) => (
+                    <TableRow key={student.id}>
+                      <TableCell className="font-medium">{student.reg_number}</TableCell>
+                      <TableCell>{student.name}</TableCell>
+                      <TableCell>{student.department || "-"}</TableCell>
+                      <TableCell>{student.semester || "-"}</TableCell>
+                      <TableCell>{student.email || "-"}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setEditingStudent(student);
+                              setFormData({
+                                name: student.name,
+                                reg_number: student.reg_number,
+                                department: student.department || "",
+                                semester: student.semester?.toString() || "",
+                                email: student.email || "",
+                                phone: student.phone || "",
+                              });
+                              setDialogOpen(true);
+                            }}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDelete(student.id)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
       </div>

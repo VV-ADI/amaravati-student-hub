@@ -3,55 +3,64 @@ import { DashboardCard } from "@/components/DashboardCard";
 import { ClipboardCheck, FileText, TrendingUp, Calendar } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
-import { useEffect, useState } from "react";
+import { useStudentRecord } from "@/hooks/useStudentRecord";
+import { useMemo } from "react";
 
 export default function StudentDashboard() {
   const { user } = useAuth();
-  const [stats, setStats] = useState({
-    avgAttendance: 0,
-    totalSubjects: 0,
-    sgpa: 0,
-    classesToday: 0,
-  });
+  const { record, loading } = useStudentRecord();
 
-  useEffect(() => {
-    const studentRecords = JSON.parse(localStorage.getItem("studentRecords") || "[]");
-    const studentData = studentRecords.find((s: any) => s.id === user?.id);
-
-    if (studentData) {
-      const subjects = Object.keys(studentData.attendance);
-      let totalAttendance = 0;
-
-      subjects.forEach((subject) => {
-        const att = studentData.attendance[subject];
-        totalAttendance += (att.present / att.total) * 100;
-      });
-
-      const avgAtt = totalAttendance / subjects.length;
-
-      // Calculate SGPA
-      let totalMarks = 0;
-      Object.values(studentData.marks).forEach((mark: any) => {
-        const total = mark.internal1 + mark.internal2 + mark.external;
-        totalMarks += total;
-      });
-      const avgMarks = totalMarks / subjects.length;
-      const sgpa = (avgMarks / 125) * 10;
-
-      setStats({
-        avgAttendance: Math.round(avgAtt),
-        totalSubjects: subjects.length,
-        sgpa: parseFloat(sgpa.toFixed(2)),
-        classesToday: 4,
-      });
+  const stats = useMemo(() => {
+    if (!record) {
+      return { avgAttendance: 0, totalSubjects: 0, sgpa: 0, classesToday: 4 };
     }
-  }, [user]);
+
+    const subjects = Object.keys(record.attendance);
+    let totalAttendance = 0;
+
+    subjects.forEach((subject) => {
+      const att = record.attendance[subject];
+      if (att.total > 0) {
+        totalAttendance += (att.present / att.total) * 100;
+      }
+    });
+
+    const avgAtt = subjects.length > 0 ? totalAttendance / subjects.length : 0;
+
+    // Calculate SGPA
+    let totalMarks = 0;
+    const marksSubjects = Object.keys(record.marks);
+    marksSubjects.forEach((subject) => {
+      const mark = record.marks[subject];
+      const total = mark.internal1 + mark.internal2 + mark.external;
+      totalMarks += total;
+    });
+    const avgMarks = marksSubjects.length > 0 ? totalMarks / marksSubjects.length : 0;
+    const sgpa = (avgMarks / 125) * 10;
+
+    return {
+      avgAttendance: Math.round(avgAtt),
+      totalSubjects: Math.max(subjects.length, marksSubjects.length),
+      sgpa: parseFloat(sgpa.toFixed(2)),
+      classesToday: 4,
+    };
+  }, [record]);
 
   const upcomingClasses = [
     { subject: "Data Structures", time: "10:00 AM - 11:00 AM", room: "Room 301" },
     { subject: "Operating Systems", time: "11:15 AM - 12:15 PM", room: "Room 205" },
     { subject: "Database Management", time: "2:00 PM - 3:00 PM", room: "Lab 4" },
   ];
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>

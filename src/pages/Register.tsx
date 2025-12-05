@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { GraduationCap, UserPlus, User, Mail, Lock } from "lucide-react";
 import { toast } from "sonner";
 
-import { useAuth, RegisterInput } from "@/contexts/AuthContext";
+import { useAuth, RegisterData } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,11 +22,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-interface FormState
-  extends Omit<RegisterInput, "semester" | "password"> {
+interface FormState {
+  name: string;
+  regNumber: string;
+  email: string;
+  department: string;
+  semester: string;
+  role: "admin" | "student";
   password: string;
   confirmPassword: string;
-  semester: string;
 }
 
 const initialForm: FormState = {
@@ -42,35 +46,48 @@ const initialForm: FormState = {
 
 const Register = () => {
   const navigate = useNavigate();
-  const { register } = useAuth();
+  const { register, isAuthenticated, user } = useAuth();
   const [formState, setFormState] = useState<FormState>(initialForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      if (user.role === "admin") {
+        navigate("/admin");
+      } else {
+        navigate("/student");
+      }
+    }
+  }, [isAuthenticated, user, navigate]);
 
   const handleChange =
     (field: keyof FormState) => (event: React.ChangeEvent<HTMLInputElement>) => {
       setFormState((prev) => ({ ...prev, [field]: event.target.value }));
     };
 
-  const handleRoleChange = (role: FormState["role"]) => {
+  const handleRoleChange = (role: "admin" | "student") => {
     setFormState((prev) => ({ ...prev, role }));
   };
 
-  const resetForm = () => {
-    setFormState(initialForm);
-  };
-
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+
     if (formState.password !== formState.confirmPassword) {
       toast.error("Passwords do not match");
       return;
     }
 
+    if (formState.password.length < 6) {
+      toast.error("Password must be at least 6 characters");
+      return;
+    }
+
     setIsSubmitting(true);
-    const payload: RegisterInput = {
+
+    const payload: RegisterData = {
       name: formState.name.trim(),
-      regNumber: formState.regNumber.trim(),
-      email: formState.email.trim() || undefined,
+      regNumber: formState.regNumber.trim().toUpperCase(),
+      email: formState.email.trim(),
       department:
         formState.role === "student" && formState.department.trim()
           ? formState.department.trim()
@@ -83,14 +100,13 @@ const Register = () => {
       password: formState.password,
     };
 
-    const result = register(payload);
+    const { error } = await register(payload);
 
-    if (result.success) {
-      toast.success("Registration successful. You can now log in.");
-      resetForm();
-      navigate("/login");
+    if (error) {
+      toast.error(error);
     } else {
-      toast.error(result.message || "Unable to register. Please try again.");
+      toast.success("Registration successful! Please check your email to confirm your account.");
+      navigate("/login");
     }
 
     setIsSubmitting(false);
@@ -166,6 +182,7 @@ const Register = () => {
                       value={formState.email}
                       onChange={handleChange("email")}
                       className="pl-10"
+                      required
                     />
                   </div>
                 </div>
@@ -257,4 +274,3 @@ const Register = () => {
 };
 
 export default Register;
-
