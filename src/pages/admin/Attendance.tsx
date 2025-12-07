@@ -110,7 +110,7 @@ export default function Attendance() {
         s.id === studentData.id ? { ...s, attendance: updatedAttendance } : s
       ));
       
-      toast.success("Attendance updated!");
+      // Silent update - no toast for every keystroke
     } catch (error: any) {
       toast.error("Failed to update: " + error.message);
     }
