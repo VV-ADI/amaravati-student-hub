@@ -25,6 +25,7 @@ import { Plus, Edit, Trash2, Search, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { studentFormSchema, formatZodErrors } from "@/lib/validations";
+import { getDefaultAttendance, getDefaultMarks } from "@/lib/constants";
 
 interface Student {
   id: string;
@@ -122,7 +123,7 @@ export default function Students() {
         if (error) throw error;
         toast.success("Student updated successfully!");
       } else {
-        // For new students created by admin, mark as placeholder
+        // For new students created by admin, mark as placeholder with default subjects
         const { error } = await supabase
           .from("student_records")
           .insert({
@@ -133,13 +134,13 @@ export default function Students() {
             semester: formData.semester ? parseInt(formData.semester) : null,
             email: formData.email.trim() || null,
             phone: formData.phone.trim() || null,
-            attendance: {},
-            marks: {},
+            attendance: getDefaultAttendance(),
+            marks: getDefaultMarks(),
             is_placeholder: true, // Mark as admin-created placeholder
           });
 
         if (error) throw error;
-        toast.success("Student record created! Note: This is a placeholder until the student registers.");
+        toast.success("Student record created with default subjects!");
       }
 
       loadStudents();
@@ -232,7 +233,7 @@ export default function Students() {
                 <DialogDescription>
                   {editingStudent 
                     ? "Update the student details below" 
-                    : "Fill in the student details. This creates a placeholder record until the student registers."}
+                    : "New students will be created with default subjects (Discrete Mathematics, Coding Skills, C++ Programming)"}
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">

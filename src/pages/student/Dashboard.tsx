@@ -5,10 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
 import { useStudentRecord } from "@/hooks/useStudentRecord";
 import { useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 
 export default function StudentDashboard() {
   const { user } = useAuth();
   const { record, loading } = useStudentRecord();
+  const navigate = useNavigate();
 
   const stats = useMemo(() => {
     if (!record) {
@@ -47,9 +49,9 @@ export default function StudentDashboard() {
   }, [record]);
 
   const upcomingClasses = [
-    { subject: "Data Structures", time: "10:00 AM - 11:00 AM", room: "Room 301" },
-    { subject: "Operating Systems", time: "11:15 AM - 12:15 PM", room: "Room 205" },
-    { subject: "Database Management", time: "2:00 PM - 3:00 PM", room: "Lab 4" },
+    { subject: "Discrete Mathematics", time: "10:00 AM - 11:00 AM", room: "Room 301" },
+    { subject: "Coding Skills", time: "11:15 AM - 12:15 PM", room: "Lab 2" },
+    { subject: "C++ Programming", time: "2:00 PM - 3:00 PM", room: "Lab 4" },
   ];
 
   if (loading) {
@@ -127,7 +129,10 @@ export default function StudentDashboard() {
 
         {/* Quick Actions */}
         <div className="grid gap-4 md:grid-cols-2">
-          <Card className="cursor-pointer hover:shadow-lg transition-shadow">
+          <Card 
+            className="cursor-pointer hover:shadow-lg transition-shadow"
+            onClick={() => navigate("/student/attendance")}
+          >
             <CardContent className="p-6">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 bg-accent rounded-lg flex items-center justify-center">
@@ -141,7 +146,10 @@ export default function StudentDashboard() {
             </CardContent>
           </Card>
 
-          <Card className="cursor-pointer hover:shadow-lg transition-shadow">
+          <Card 
+            className="cursor-pointer hover:shadow-lg transition-shadow"
+            onClick={() => navigate("/student/marks")}
+          >
             <CardContent className="p-6">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 bg-accent-green rounded-lg flex items-center justify-center">
