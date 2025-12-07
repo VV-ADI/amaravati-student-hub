@@ -86,8 +86,8 @@ export default function Login() {
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="email"
-                    type="email"
-                    placeholder="name@srmap.edu.in"
+                    type="text"
+                    placeholder="name@srmap.edu.in or admin123"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="pl-10"
