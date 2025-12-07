@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { GraduationCap, UserPlus, User, Mail, Lock } from "lucide-react";
+import { GraduationCap, UserPlus, User, Mail, Lock, Shield } from "lucide-react";
 import { toast } from "sonner";
 
 import { useAuth, RegisterData } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Card,
   CardContent,
@@ -16,7 +17,7 @@ import {
 } from "@/components/ui/card";
 import { registrationSchema, formatZodErrors } from "@/lib/validations";
 
-interface FormState {
+interface StudentFormState {
   name: string;
   regNumber: string;
   email: string;
@@ -24,10 +25,18 @@ interface FormState {
   semester: string;
   password: string;
   confirmPassword: string;
+}
+
+interface AdminFormState {
+  name: string;
+  regNumber: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
   adminCode: string;
 }
 
-const initialForm: FormState = {
+const initialStudentForm: StudentFormState = {
   name: "",
   regNumber: "",
   email: "",
@@ -35,57 +44,71 @@ const initialForm: FormState = {
   semester: "",
   password: "",
   confirmPassword: "",
+};
+
+const initialAdminForm: AdminFormState = {
+  name: "",
+  regNumber: "",
+  email: "",
+  password: "",
+  confirmPassword: "",
   adminCode: "",
 };
 
-// Simple admin code for registration (for demo purposes)
 const ADMIN_SECRET_CODE = "admin123";
 
 const Register = () => {
   const navigate = useNavigate();
-  const { register, isAuthenticated, user } = useAuth();
-  const [formState, setFormState] = useState<FormState>(initialForm);
+  const { register, isAuthenticated, user, loading: authLoading } = useAuth();
+  const [studentForm, setStudentForm] = useState<StudentFormState>(initialStudentForm);
+  const [adminForm, setAdminForm] = useState<AdminFormState>(initialAdminForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [activeTab, setActiveTab] = useState<"student" | "admin">("student");
 
   useEffect(() => {
-    if (isAuthenticated && user) {
+    if (!authLoading && isAuthenticated && user) {
       if (user.role === "admin") {
-        navigate("/admin");
+        navigate("/admin", { replace: true });
       } else {
-        navigate("/student");
+        navigate("/student", { replace: true });
       }
     }
-  }, [isAuthenticated, user, navigate]);
+  }, [isAuthenticated, user, navigate, authLoading]);
 
-  const handleChange =
-    (field: keyof FormState) => (event: React.ChangeEvent<HTMLInputElement>) => {
-      setFormState((prev) => ({ ...prev, [field]: event.target.value }));
-      // Clear error for this field when user types
+  const handleStudentChange =
+    (field: keyof StudentFormState) => (event: React.ChangeEvent<HTMLInputElement>) => {
+      setStudentForm((prev) => ({ ...prev, [field]: event.target.value }));
       if (errors[field]) {
         setErrors((prev) => ({ ...prev, [field]: "" }));
       }
     };
 
-  const handleSubmit = async (event: React.FormEvent) => {
+  const handleAdminChange =
+    (field: keyof AdminFormState) => (event: React.ChangeEvent<HTMLInputElement>) => {
+      setAdminForm((prev) => ({ ...prev, [field]: event.target.value }));
+      if (errors[field]) {
+        setErrors((prev) => ({ ...prev, [field]: "" }));
+      }
+    };
+
+  const handleStudentSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setErrors({});
 
-    // Validate with zod
     const validationData = {
-      name: formState.name,
-      regNumber: formState.regNumber,
-      email: formState.email,
-      department: formState.department || undefined,
-      semester: formState.semester ? Number(formState.semester) : undefined,
-      password: formState.password,
-      confirmPassword: formState.confirmPassword,
+      name: studentForm.name,
+      regNumber: studentForm.regNumber,
+      email: studentForm.email,
+      department: studentForm.department || undefined,
+      semester: studentForm.semester ? Number(studentForm.semester) : undefined,
+      password: studentForm.password,
+      confirmPassword: studentForm.confirmPassword,
     };
 
     const result = registrationSchema.safeParse(validationData);
     
     if (!result.success) {
-      // Map errors to fields
       const fieldErrors: Record<string, string> = {};
       result.error.errors.forEach((err) => {
         const field = err.path[0] as string;
@@ -98,17 +121,14 @@ const Register = () => {
 
     setIsSubmitting(true);
 
-    // Check if admin code is provided and correct
-    const isAdmin = formState.adminCode.trim() === ADMIN_SECRET_CODE;
-
     const payload: RegisterData = {
-      name: formState.name.trim(),
-      regNumber: formState.regNumber.trim().toUpperCase(),
-      email: formState.email.trim(),
-      department: formState.department.trim() || undefined,
-      semester: formState.semester ? Number(formState.semester) : undefined,
-      role: isAdmin ? "admin" : "student",
-      password: formState.password,
+      name: studentForm.name.trim(),
+      regNumber: studentForm.regNumber.trim().toUpperCase(),
+      email: studentForm.email.trim(),
+      department: studentForm.department.trim() || undefined,
+      semester: studentForm.semester ? Number(studentForm.semester) : undefined,
+      role: "student",
+      password: studentForm.password,
     };
 
     const { error } = await register(payload);
@@ -123,6 +143,67 @@ const Register = () => {
     setIsSubmitting(false);
   };
 
+  const handleAdminSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setErrors({});
+
+    if (adminForm.adminCode !== ADMIN_SECRET_CODE) {
+      toast.error("Invalid admin code");
+      setErrors({ adminCode: "Invalid admin code" });
+      return;
+    }
+
+    const validationData = {
+      name: adminForm.name,
+      regNumber: adminForm.regNumber,
+      email: adminForm.email,
+      password: adminForm.password,
+      confirmPassword: adminForm.confirmPassword,
+    };
+
+    const result = registrationSchema.safeParse(validationData);
+    
+    if (!result.success) {
+      const fieldErrors: Record<string, string> = {};
+      result.error.errors.forEach((err) => {
+        const field = err.path[0] as string;
+        fieldErrors[field] = err.message;
+      });
+      setErrors(fieldErrors);
+      toast.error(formatZodErrors(result.error));
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    const payload: RegisterData = {
+      name: adminForm.name.trim(),
+      regNumber: adminForm.regNumber.trim().toUpperCase(),
+      email: adminForm.email.trim(),
+      role: "admin",
+      password: adminForm.password,
+    };
+
+    const { error } = await register(payload);
+
+    if (error) {
+      toast.error(error);
+    } else {
+      toast.success("Admin registration successful! Please check your email to confirm your account.");
+      navigate("/login");
+    }
+
+    setIsSubmitting(false);
+  };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary via-primary/90 to-accent-brown flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-foreground"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary via-primary/90 to-accent-brown flex items-center justify-center p-4">
       <div className="w-full max-w-2xl">
@@ -136,154 +217,259 @@ const Register = () => {
           <p className="text-primary-foreground/80">Student Management System</p>
         </div>
 
-        <Card>
-          <CardHeader>
-            <div className="flex items-start gap-3">
+        <Card className="shadow-xl">
+          <CardHeader className="text-center pb-2">
+            <div className="flex items-center justify-center gap-3 mb-2">
               <div className="w-12 h-12 flex items-center justify-center rounded-full bg-primary/10 text-primary">
                 <UserPlus className="w-6 h-6" />
               </div>
-              <div>
-                <CardTitle className="text-2xl font-serif">
-                  Student Registration
-                </CardTitle>
-                <CardDescription>
-                  Create your student account to access the portal
-                </CardDescription>
-              </div>
             </div>
+            <CardTitle className="text-2xl font-serif">Create Account</CardTitle>
+            <CardDescription>
+              Register to access the portal
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <form className="space-y-4" onSubmit={handleSubmit}>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Full Name</Label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="name"
-                      placeholder="Rajesh Kumar"
-                      value={formState.name}
-                      onChange={handleChange("name")}
-                      className={`pl-10 ${errors.name ? "border-destructive" : ""}`}
-                      required
-                    />
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "student" | "admin")} className="w-full">
+              <TabsList className="grid w-full grid-cols-2 mb-6">
+                <TabsTrigger value="student" className="flex items-center gap-2">
+                  <User className="h-4 w-4" />
+                  Student
+                </TabsTrigger>
+                <TabsTrigger value="admin" className="flex items-center gap-2">
+                  <Shield className="h-4 w-4" />
+                  Admin
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="student">
+                <form className="space-y-4" onSubmit={handleStudentSubmit}>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="student-name">Full Name</Label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="student-name"
+                          placeholder="Rajesh Kumar"
+                          value={studentForm.name}
+                          onChange={handleStudentChange("name")}
+                          className={`pl-10 ${errors.name ? "border-destructive" : ""}`}
+                          required
+                        />
+                      </div>
+                      {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="student-regNumber">Registration Number</Label>
+                      <Input
+                        id="student-regNumber"
+                        placeholder="AP21110010001"
+                        value={studentForm.regNumber}
+                        onChange={handleStudentChange("regNumber")}
+                        className={errors.regNumber ? "border-destructive" : ""}
+                        required
+                      />
+                      {errors.regNumber && <p className="text-sm text-destructive">{errors.regNumber}</p>}
+                    </div>
                   </div>
-                  {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="regNumber">Registration Number</Label>
-                  <Input
-                    id="regNumber"
-                    placeholder="AP21110010001"
-                    value={formState.regNumber}
-                    onChange={handleChange("regNumber")}
-                    className={errors.regNumber ? "border-destructive" : ""}
-                    required
-                  />
-                  {errors.regNumber && <p className="text-sm text-destructive">{errors.regNumber}</p>}
-                </div>
-              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="name@srmap.edu.in"
-                      value={formState.email}
-                      onChange={handleChange("email")}
-                      className={`pl-10 ${errors.email ? "border-destructive" : ""}`}
-                      required
-                    />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="student-email">Email</Label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="student-email"
+                          type="email"
+                          placeholder="name@srmap.edu.in"
+                          value={studentForm.email}
+                          onChange={handleStudentChange("email")}
+                          className={`pl-10 ${errors.email ? "border-destructive" : ""}`}
+                          required
+                        />
+                      </div>
+                      {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="student-department">Department</Label>
+                      <Input
+                        id="student-department"
+                        placeholder="Computer Science"
+                        value={studentForm.department}
+                        onChange={handleStudentChange("department")}
+                        className={errors.department ? "border-destructive" : ""}
+                      />
+                      {errors.department && <p className="text-sm text-destructive">{errors.department}</p>}
+                    </div>
                   </div>
-                  {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="department">Department</Label>
-                  <Input
-                    id="department"
-                    placeholder="Computer Science"
-                    value={formState.department}
-                    onChange={handleChange("department")}
-                    className={errors.department ? "border-destructive" : ""}
-                  />
-                  {errors.department && <p className="text-sm text-destructive">{errors.department}</p>}
-                </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="semester">Semester</Label>
-                <Input
-                  id="semester"
-                  type="number"
-                  min={1}
-                  max={10}
-                  placeholder="6"
-                  value={formState.semester}
-                  onChange={handleChange("semester")}
-                  className={errors.semester ? "border-destructive" : ""}
-                />
-                {errors.semester && <p className="text-sm text-destructive">{errors.semester}</p>}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="adminCode">Admin Code (optional)</Label>
-                <Input
-                  id="adminCode"
-                  type="password"
-                  placeholder="Leave empty for student registration"
-                  value={formState.adminCode}
-                  onChange={handleChange("adminCode")}
-                />
-                <p className="text-xs text-muted-foreground">Enter admin code to register as admin</p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <div className="space-y-2">
+                    <Label htmlFor="student-semester">Semester</Label>
                     <Input
-                      id="password"
-                      type="password"
-                      placeholder="••••••••"
-                      value={formState.password}
-                      onChange={handleChange("password")}
-                      className={`pl-10 ${errors.password ? "border-destructive" : ""}`}
-                      required
+                      id="student-semester"
+                      type="number"
+                      min={1}
+                      max={10}
+                      placeholder="6"
+                      value={studentForm.semester}
+                      onChange={handleStudentChange("semester")}
+                      className={errors.semester ? "border-destructive" : ""}
                     />
+                    {errors.semester && <p className="text-sm text-destructive">{errors.semester}</p>}
                   </div>
-                  {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="confirmPassword">Confirm Password</Label>
-                  <Input
-                    id="confirmPassword"
-                    type="password"
-                    placeholder="••••••••"
-                    value={formState.confirmPassword}
-                    onChange={handleChange("confirmPassword")}
-                    className={errors.confirmPassword ? "border-destructive" : ""}
-                    required
-                  />
-                  {errors.confirmPassword && <p className="text-sm text-destructive">{errors.confirmPassword}</p>}
-                </div>
-              </div>
 
-              <Button type="submit" className="w-full" disabled={isSubmitting}>
-                {isSubmitting ? "Creating account..." : "Register"}
-              </Button>
-            </form>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="student-password">Password</Label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="student-password"
+                          type="password"
+                          placeholder="••••••••"
+                          value={studentForm.password}
+                          onChange={handleStudentChange("password")}
+                          className={`pl-10 ${errors.password ? "border-destructive" : ""}`}
+                          required
+                        />
+                      </div>
+                      {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="student-confirmPassword">Confirm Password</Label>
+                      <Input
+                        id="student-confirmPassword"
+                        type="password"
+                        placeholder="••••••••"
+                        value={studentForm.confirmPassword}
+                        onChange={handleStudentChange("confirmPassword")}
+                        className={errors.confirmPassword ? "border-destructive" : ""}
+                        required
+                      />
+                      {errors.confirmPassword && <p className="text-sm text-destructive">{errors.confirmPassword}</p>}
+                    </div>
+                  </div>
 
-            <p className="text-center text-sm text-muted-foreground mt-6">
-              Already have an account?{" "}
-              <Link to="/login" className="text-primary underline-offset-2 hover:underline">
-                Back to login
-              </Link>
-            </p>
+                  <Button type="submit" className="w-full" disabled={isSubmitting}>
+                    {isSubmitting ? "Creating account..." : "Register as Student"}
+                  </Button>
+                </form>
+              </TabsContent>
+
+              <TabsContent value="admin">
+                <form className="space-y-4" onSubmit={handleAdminSubmit}>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="admin-name">Full Name</Label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="admin-name"
+                          placeholder="Admin Name"
+                          value={adminForm.name}
+                          onChange={handleAdminChange("name")}
+                          className={`pl-10 ${errors.name ? "border-destructive" : ""}`}
+                          required
+                        />
+                      </div>
+                      {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="admin-regNumber">Admin ID</Label>
+                      <Input
+                        id="admin-regNumber"
+                        placeholder="ADMIN001"
+                        value={adminForm.regNumber}
+                        onChange={handleAdminChange("regNumber")}
+                        className={errors.regNumber ? "border-destructive" : ""}
+                        required
+                      />
+                      {errors.regNumber && <p className="text-sm text-destructive">{errors.regNumber}</p>}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="admin-email">Email</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="admin-email"
+                        type="email"
+                        placeholder="admin@srmap.edu.in"
+                        value={adminForm.email}
+                        onChange={handleAdminChange("email")}
+                        className={`pl-10 ${errors.email ? "border-destructive" : ""}`}
+                        required
+                      />
+                    </div>
+                    {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="admin-code">Admin Secret Code</Label>
+                    <div className="relative">
+                      <Shield className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="admin-code"
+                        type="password"
+                        placeholder="Enter admin code"
+                        value={adminForm.adminCode}
+                        onChange={handleAdminChange("adminCode")}
+                        className={`pl-10 ${errors.adminCode ? "border-destructive" : ""}`}
+                        required
+                      />
+                    </div>
+                    {errors.adminCode && <p className="text-sm text-destructive">{errors.adminCode}</p>}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="admin-password">Password</Label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="admin-password"
+                          type="password"
+                          placeholder="••••••••"
+                          value={adminForm.password}
+                          onChange={handleAdminChange("password")}
+                          className={`pl-10 ${errors.password ? "border-destructive" : ""}`}
+                          required
+                        />
+                      </div>
+                      {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="admin-confirmPassword">Confirm Password</Label>
+                      <Input
+                        id="admin-confirmPassword"
+                        type="password"
+                        placeholder="••••••••"
+                        value={adminForm.confirmPassword}
+                        onChange={handleAdminChange("confirmPassword")}
+                        className={errors.confirmPassword ? "border-destructive" : ""}
+                        required
+                      />
+                      {errors.confirmPassword && <p className="text-sm text-destructive">{errors.confirmPassword}</p>}
+                    </div>
+                  </div>
+
+                  <Button type="submit" className="w-full" disabled={isSubmitting}>
+                    {isSubmitting ? "Creating account..." : "Register as Admin"}
+                  </Button>
+                </form>
+              </TabsContent>
+            </Tabs>
+
+            <div className="mt-6 pt-4 border-t">
+              <p className="text-center text-sm text-muted-foreground">
+                Already have an account?{" "}
+                <Link to="/login" className="text-primary font-medium underline-offset-2 hover:underline">
+                  Back to login
+                </Link>
+              </p>
+            </div>
           </CardContent>
         </Card>
       </div>

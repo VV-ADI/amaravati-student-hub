@@ -11,8 +11,8 @@ export const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) 
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="min-h-screen bg-gradient-to-br from-primary via-primary/90 to-accent-brown flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-foreground"></div>
       </div>
     );
   }
@@ -22,7 +22,13 @@ export const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) 
   }
 
   if (requiredRole && user?.role !== requiredRole) {
-    return <Navigate to="/" replace />;
+    // Redirect to their appropriate dashboard instead of root
+    if (user?.role === "admin") {
+      return <Navigate to="/admin" replace />;
+    } else if (user?.role === "student") {
+      return <Navigate to="/student" replace />;
+    }
+    return <Navigate to="/login" replace />;
   }
 
   return <>{children}</>;
