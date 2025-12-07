@@ -8,15 +8,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { toast } from "sonner";
 import { GraduationCap, Lock, Mail } from "lucide-react";
 
-// Hardcoded admin credentials (for demo purposes only)
-const ADMIN_EMAIL = "admin123";
-const ADMIN_PASSWORD = "admin123";
-
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const { login, isAuthenticated, user, setMockAdminUser } = useAuth();
+  const { login, isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -40,14 +36,6 @@ export default function Login() {
     setLoading(true);
 
     try {
-      // Check for hardcoded admin credentials
-      if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
-        setMockAdminUser();
-        toast.success("Welcome, Admin!");
-        navigate("/admin");
-        return;
-      }
-
       const { error } = await login(email, password);
       
       if (error) {
