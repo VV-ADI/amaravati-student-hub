@@ -20,6 +20,8 @@ export default function Login() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Clear any stale mock admin session on login page load
+    // Only redirect if user is genuinely authenticated
     if (isAuthenticated && user) {
       if (user.role === "admin") {
         navigate("/admin");
@@ -28,6 +30,12 @@ export default function Login() {
       }
     }
   }, [isAuthenticated, user, navigate]);
+
+  // Function to clear session and show login
+  const handleLogoutFirst = () => {
+    localStorage.removeItem("mockAdminUser");
+    window.location.reload();
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -117,7 +125,20 @@ export default function Login() {
               </Button>
             </form>
 
-            <p className="text-center text-sm text-muted-foreground mt-4">
+            {isAuthenticated && (
+              <p className="text-center text-sm text-muted-foreground mb-4">
+                Already logged in?{" "}
+                <button
+                  type="button"
+                  onClick={handleLogoutFirst}
+                  className="text-primary underline-offset-2 hover:underline"
+                >
+                  Logout first
+                </button>
+              </p>
+            )}
+
+            <p className="text-center text-sm text-muted-foreground">
               Don&apos;t have an account?{" "}
               <Link
                 to="/register"
