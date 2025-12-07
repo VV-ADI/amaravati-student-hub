@@ -20,9 +20,11 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Edit, Trash2, Search } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Plus, Edit, Trash2, Search, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { studentFormSchema, formatZodErrors } from "@/lib/validations";
 
 interface Student {
   id: string;
@@ -33,6 +35,7 @@ interface Student {
   semester: number | null;
   email: string | null;
   phone: string | null;
+  is_placeholder: boolean;
 }
 
 interface FormData {
@@ -57,6 +60,7 @@ export default function Students() {
     email: "",
     phone: "",
   });
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -79,43 +83,63 @@ export default function Students() {
     }
   };
 
+  const validateForm = (): boolean => {
+    const result = studentFormSchema.safeParse(formData);
+    
+    if (!result.success) {
+      const errors: Record<string, string> = {};
+      result.error.errors.forEach((err) => {
+        const field = err.path[0] as string;
+        errors[field] = err.message;
+      });
+      setFormErrors(errors);
+      toast.error(formatZodErrors(result.error));
+      return false;
+    }
+    
+    setFormErrors({});
+    return true;
+  };
+
   const handleSave = async () => {
+    if (!validateForm()) return;
+
     try {
       if (editingStudent) {
         // Update existing student
         const { error } = await supabase
           .from("student_records")
           .update({
-            name: formData.name,
-            reg_number: formData.reg_number,
-            department: formData.department || null,
+            name: formData.name.trim(),
+            reg_number: formData.reg_number.trim().toUpperCase(),
+            department: formData.department.trim() || null,
             semester: formData.semester ? parseInt(formData.semester) : null,
-            email: formData.email || null,
-            phone: formData.phone || null,
+            email: formData.email.trim() || null,
+            phone: formData.phone.trim() || null,
           })
           .eq("id", editingStudent.id);
 
         if (error) throw error;
         toast.success("Student updated successfully!");
       } else {
-        // For new students created by admin, we need a user_id
-        // This is a simplified approach - in production you'd want to create the auth user first
+        // For new students created by admin, mark as placeholder
         const { error } = await supabase
           .from("student_records")
           .insert({
-            user_id: crypto.randomUUID(), // Placeholder - ideally linked to auth user
-            name: formData.name,
-            reg_number: formData.reg_number,
-            department: formData.department || null,
+            user_id: crypto.randomUUID(), // Placeholder UUID
+            name: formData.name.trim(),
+            reg_number: formData.reg_number.trim().toUpperCase(),
+            department: formData.department.trim() || null,
             semester: formData.semester ? parseInt(formData.semester) : null,
-            email: formData.email || null,
-            phone: formData.phone || null,
+            email: formData.email.trim() || null,
+            phone: formData.phone.trim() || null,
             attendance: {},
             marks: {},
+            is_placeholder: true, // Mark as admin-created placeholder
           });
 
         if (error) throw error;
-        toast.success("Student added successfully!");
+        toast.success("Student record created! Note: This is a placeholder until the student registers.");
       }
 
       loadStudents();
@@ -129,6 +153,7 @@ export default function Students() {
         email: "",
         phone: "",
       });
+      setFormErrors({});
     } catch (error: any) {
       toast.error("Failed to save: " + error.message);
     }
@@ -155,6 +180,13 @@ export default function Students() {
       s.reg_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (s.department && s.department.toLowerCase().includes(searchQuery.toLowerCase()))
   );
+
+  const handleInputChange = (field: keyof FormData, value: string) => {
+    setFormData({ ...formData, [field]: value });
+    if (formErrors[field]) {
+      setFormErrors({ ...formErrors, [field]: "" });
+    }
+  };
 
   if (loading) {
     return (
@@ -186,6 +218,7 @@ export default function Students() {
                   email: "",
                   phone: "",
                 });
+                setFormErrors({});
               }}>
                 <Plus className="mr-2 h-4 w-4" />
                 Add Student
@@ -197,26 +230,32 @@ export default function Students() {
                   {editingStudent ? "Edit Student" : "Add New Student"}
                 </DialogTitle>
                 <DialogDescription>
-                  Fill in the student details below
+                  {editingStudent 
+                    ? "Update the student details below" 
+                    : "Fill in the student details. This creates a placeholder record until the student registers."}
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="name">Full Name</Label>
+                    <Label htmlFor="name">Full Name *</Label>
                     <Input
                       id="name"
                       value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      onChange={(e) => handleInputChange("name", e.target.value)}
+                      className={formErrors.name ? "border-destructive" : ""}
                     />
+                    {formErrors.name && <p className="text-sm text-destructive">{formErrors.name}</p>}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="reg_number">Registration Number</Label>
+                    <Label htmlFor="reg_number">Registration Number *</Label>
                     <Input
                       id="reg_number"
                       value={formData.reg_number}
-                      onChange={(e) => setFormData({ ...formData, reg_number: e.target.value })}
+                      onChange={(e) => handleInputChange("reg_number", e.target.value)}
+                      className={formErrors.reg_number ? "border-destructive" : ""}
                     />
+                    {formErrors.reg_number && <p className="text-sm text-destructive">{formErrors.reg_number}</p>}
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -225,17 +264,23 @@ export default function Students() {
                     <Input
                       id="department"
                       value={formData.department}
-                      onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                      onChange={(e) => handleInputChange("department", e.target.value)}
+                      className={formErrors.department ? "border-destructive" : ""}
                     />
+                    {formErrors.department && <p className="text-sm text-destructive">{formErrors.department}</p>}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="semester">Semester</Label>
                     <Input
                       id="semester"
                       type="number"
+                      min={1}
+                      max={10}
                       value={formData.semester}
-                      onChange={(e) => setFormData({ ...formData, semester: e.target.value })}
+                      onChange={(e) => handleInputChange("semester", e.target.value)}
+                      className={formErrors.semester ? "border-destructive" : ""}
                     />
+                    {formErrors.semester && <p className="text-sm text-destructive">{formErrors.semester}</p>}
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -245,16 +290,20 @@ export default function Students() {
                       id="email"
                       type="email"
                       value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      onChange={(e) => handleInputChange("email", e.target.value)}
+                      className={formErrors.email ? "border-destructive" : ""}
                     />
+                    {formErrors.email && <p className="text-sm text-destructive">{formErrors.email}</p>}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="phone">Phone</Label>
                     <Input
                       id="phone"
                       value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      onChange={(e) => handleInputChange("phone", e.target.value)}
+                      className={formErrors.phone ? "border-destructive" : ""}
                     />
+                    {formErrors.phone && <p className="text-sm text-destructive">{formErrors.phone}</p>}
                   </div>
                 </div>
               </div>
@@ -295,6 +344,7 @@ export default function Students() {
                     <TableHead>Department</TableHead>
                     <TableHead>Semester</TableHead>
                     <TableHead>Email</TableHead>
+                    <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -306,6 +356,16 @@ export default function Students() {
                       <TableCell>{student.department || "-"}</TableCell>
                       <TableCell>{student.semester || "-"}</TableCell>
                       <TableCell>{student.email || "-"}</TableCell>
+                      <TableCell>
+                        {student.is_placeholder ? (
+                          <Badge variant="secondary" className="gap-1">
+                            <AlertCircle className="h-3 w-3" />
+                            Placeholder
+                          </Badge>
+                        ) : (
+                          <Badge variant="default">Registered</Badge>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
                           <Button
@@ -321,6 +381,7 @@ export default function Students() {
                                 email: student.email || "",
                                 phone: student.phone || "",
                               });
+                              setFormErrors({});
                               setDialogOpen(true);
                             }}
                           >

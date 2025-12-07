@@ -14,13 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { registrationSchema, formatZodErrors } from "@/lib/validations";
 
 interface FormState {
   name: string;
@@ -28,7 +22,6 @@ interface FormState {
   email: string;
   department: string;
   semester: string;
-  role: "admin" | "student";
   password: string;
   confirmPassword: string;
 }
@@ -39,7 +32,6 @@ const initialForm: FormState = {
   email: "",
   department: "",
   semester: "",
-  role: "student",
   password: "",
   confirmPassword: "",
 };
@@ -49,6 +41,7 @@ const Register = () => {
   const { register, isAuthenticated, user } = useAuth();
   const [formState, setFormState] = useState<FormState>(initialForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (isAuthenticated && user) {
@@ -63,40 +56,51 @@ const Register = () => {
   const handleChange =
     (field: keyof FormState) => (event: React.ChangeEvent<HTMLInputElement>) => {
       setFormState((prev) => ({ ...prev, [field]: event.target.value }));
+      // Clear error for this field when user types
+      if (errors[field]) {
+        setErrors((prev) => ({ ...prev, [field]: "" }));
+      }
     };
-
-  const handleRoleChange = (role: "admin" | "student") => {
-    setFormState((prev) => ({ ...prev, role }));
-  };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    setErrors({});
 
-    if (formState.password !== formState.confirmPassword) {
-      toast.error("Passwords do not match");
-      return;
-    }
+    // Validate with zod
+    const validationData = {
+      name: formState.name,
+      regNumber: formState.regNumber,
+      email: formState.email,
+      department: formState.department || undefined,
+      semester: formState.semester ? Number(formState.semester) : undefined,
+      password: formState.password,
+      confirmPassword: formState.confirmPassword,
+    };
 
-    if (formState.password.length < 6) {
-      toast.error("Password must be at least 6 characters");
+    const result = registrationSchema.safeParse(validationData);
+    
+    if (!result.success) {
+      // Map errors to fields
+      const fieldErrors: Record<string, string> = {};
+      result.error.errors.forEach((err) => {
+        const field = err.path[0] as string;
+        fieldErrors[field] = err.message;
+      });
+      setErrors(fieldErrors);
+      toast.error(formatZodErrors(result.error));
       return;
     }
 
     setIsSubmitting(true);
 
+    // Only students can register through public form - enforce student role
     const payload: RegisterData = {
       name: formState.name.trim(),
       regNumber: formState.regNumber.trim().toUpperCase(),
       email: formState.email.trim(),
-      department:
-        formState.role === "student" && formState.department.trim()
-          ? formState.department.trim()
-          : undefined,
-      semester:
-        formState.role === "student" && formState.semester
-          ? Number(formState.semester)
-          : undefined,
-      role: formState.role,
+      department: formState.department.trim() || undefined,
+      semester: formState.semester ? Number(formState.semester) : undefined,
+      role: "student", // Always student for public registration
       password: formState.password,
     };
 
@@ -133,10 +137,10 @@ const Register = () => {
               </div>
               <div>
                 <CardTitle className="text-2xl font-serif">
-                  Create an account
+                  Student Registration
                 </CardTitle>
                 <CardDescription>
-                  Register to access the student and admin dashboards
+                  Create your student account to access the portal
                 </CardDescription>
               </div>
             </div>
@@ -153,10 +157,11 @@ const Register = () => {
                       placeholder="Rajesh Kumar"
                       value={formState.name}
                       onChange={handleChange("name")}
-                      className="pl-10"
+                      className={`pl-10 ${errors.name ? "border-destructive" : ""}`}
                       required
                     />
                   </div>
+                  {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="regNumber">Registration Number</Label>
@@ -165,8 +170,10 @@ const Register = () => {
                     placeholder="AP21110010001"
                     value={formState.regNumber}
                     onChange={handleChange("regNumber")}
+                    className={errors.regNumber ? "border-destructive" : ""}
                     required
                   />
+                  {errors.regNumber && <p className="text-sm text-destructive">{errors.regNumber}</p>}
                 </div>
               </div>
 
@@ -181,50 +188,39 @@ const Register = () => {
                       placeholder="name@srmap.edu.in"
                       value={formState.email}
                       onChange={handleChange("email")}
-                      className="pl-10"
+                      className={`pl-10 ${errors.email ? "border-destructive" : ""}`}
                       required
                     />
                   </div>
+                  {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
                 </div>
                 <div className="space-y-2">
-                  <Label>Role</Label>
-                  <Select value={formState.role} onValueChange={handleRoleChange}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="student">Student</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="department">Department</Label>
+                  <Input
+                    id="department"
+                    placeholder="Computer Science"
+                    value={formState.department}
+                    onChange={handleChange("department")}
+                    className={errors.department ? "border-destructive" : ""}
+                  />
+                  {errors.department && <p className="text-sm text-destructive">{errors.department}</p>}
                 </div>
               </div>
 
-              {formState.role === "student" && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="department">Department</Label>
-                    <Input
-                      id="department"
-                      placeholder="Computer Science"
-                      value={formState.department}
-                      onChange={handleChange("department")}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="semester">Semester</Label>
-                    <Input
-                      id="semester"
-                      type="number"
-                      min={1}
-                      max={10}
-                      placeholder="6"
-                      value={formState.semester}
-                      onChange={handleChange("semester")}
-                    />
-                  </div>
-                </div>
-              )}
+              <div className="space-y-2">
+                <Label htmlFor="semester">Semester</Label>
+                <Input
+                  id="semester"
+                  type="number"
+                  min={1}
+                  max={10}
+                  placeholder="6"
+                  value={formState.semester}
+                  onChange={handleChange("semester")}
+                  className={errors.semester ? "border-destructive" : ""}
+                />
+                {errors.semester && <p className="text-sm text-destructive">{errors.semester}</p>}
+              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -237,10 +233,11 @@ const Register = () => {
                       placeholder="••••••••"
                       value={formState.password}
                       onChange={handleChange("password")}
-                      className="pl-10"
+                      className={`pl-10 ${errors.password ? "border-destructive" : ""}`}
                       required
                     />
                   </div>
+                  {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="confirmPassword">Confirm Password</Label>
@@ -250,8 +247,10 @@ const Register = () => {
                     placeholder="••••••••"
                     value={formState.confirmPassword}
                     onChange={handleChange("confirmPassword")}
+                    className={errors.confirmPassword ? "border-destructive" : ""}
                     required
                   />
+                  {errors.confirmPassword && <p className="text-sm text-destructive">{errors.confirmPassword}</p>}
                 </div>
               </div>
 
