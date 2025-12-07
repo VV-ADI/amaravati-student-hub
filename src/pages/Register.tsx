@@ -24,6 +24,7 @@ interface FormState {
   semester: string;
   password: string;
   confirmPassword: string;
+  adminCode: string;
 }
 
 const initialForm: FormState = {
@@ -34,7 +35,11 @@ const initialForm: FormState = {
   semester: "",
   password: "",
   confirmPassword: "",
+  adminCode: "",
 };
+
+// Simple admin code for registration (for demo purposes)
+const ADMIN_SECRET_CODE = "admin123";
 
 const Register = () => {
   const navigate = useNavigate();
@@ -93,14 +98,16 @@ const Register = () => {
 
     setIsSubmitting(true);
 
-    // Only students can register through public form - enforce student role
+    // Check if admin code is provided and correct
+    const isAdmin = formState.adminCode.trim() === ADMIN_SECRET_CODE;
+
     const payload: RegisterData = {
       name: formState.name.trim(),
       regNumber: formState.regNumber.trim().toUpperCase(),
       email: formState.email.trim(),
       department: formState.department.trim() || undefined,
       semester: formState.semester ? Number(formState.semester) : undefined,
-      role: "student", // Always student for public registration
+      role: isAdmin ? "admin" : "student",
       password: formState.password,
     };
 
@@ -220,6 +227,18 @@ const Register = () => {
                   className={errors.semester ? "border-destructive" : ""}
                 />
                 {errors.semester && <p className="text-sm text-destructive">{errors.semester}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="adminCode">Admin Code (optional)</Label>
+                <Input
+                  id="adminCode"
+                  type="password"
+                  placeholder="Leave empty for student registration"
+                  value={formState.adminCode}
+                  onChange={handleChange("adminCode")}
+                />
+                <p className="text-xs text-muted-foreground">Enter admin code to register as admin</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
