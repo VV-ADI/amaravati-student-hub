@@ -107,7 +107,7 @@ export default function Marks() {
         s.id === studentData.id ? { ...s, marks: updatedMarks } : s
       ));
       
-      toast.success("Marks updated!");
+      // Silent update - no toast for every keystroke
     } catch (error: any) {
       toast.error("Failed to update: " + error.message);
     }
