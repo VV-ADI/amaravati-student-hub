@@ -14,7 +14,6 @@ import AdminMarks from "./pages/admin/Marks";
 import StudentDashboard from "./pages/student/Dashboard";
 import StudentAttendance from "./pages/student/Attendance";
 import StudentMarks from "./pages/student/Marks";
-import Timetable from "./pages/student/Timetable";
 import Profile from "./pages/student/Profile";
 import NotFound from "./pages/NotFound";
 
@@ -88,14 +87,6 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRole="student">
                   <StudentMarks />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/student/timetable"
-              element={
-                <ProtectedRoute requiredRole="student">
-                  <Timetable />
                 </ProtectedRoute>
               }
             />

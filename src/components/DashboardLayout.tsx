@@ -8,7 +8,6 @@ import {
   Users,
   ClipboardList,
   FileText,
-  Calendar,
   UserCircle,
   LogOut,
   Menu,
@@ -42,7 +41,6 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     { to: "/student", icon: LayoutDashboard, label: "Dashboard" },
     { to: "/student/attendance", icon: ClipboardList, label: "Attendance" },
     { to: "/student/marks", icon: FileText, label: "Marks" },
-    { to: "/student/timetable", icon: Calendar, label: "Timetable" },
     { to: "/student/profile", icon: UserCircle, label: "Profile" },
   ];
 
