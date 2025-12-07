@@ -54,6 +54,7 @@ export type Database = {
           department: string | null
           email: string | null
           id: string
+          is_placeholder: boolean
           marks: Json | null
           name: string
           phone: string | null
@@ -68,6 +69,7 @@ export type Database = {
           department?: string | null
           email?: string | null
           id?: string
+          is_placeholder?: boolean
           marks?: Json | null
           name: string
           phone?: string | null
@@ -82,6 +84,7 @@ export type Database = {
           department?: string | null
           email?: string | null
           id?: string
+          is_placeholder?: boolean
           marks?: Json | null
           name?: string
           phone?: string | null
