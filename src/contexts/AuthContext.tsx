@@ -12,6 +12,7 @@ export interface AppUser {
   role: AppRole;
   department?: string;
   semester?: number;
+  isMockAdmin?: boolean;
 }
 
 interface AuthContextType {
@@ -22,6 +23,7 @@ interface AuthContextType {
   register: (data: RegisterData) => Promise<{ error: string | null }>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
+  setMockAdminUser: () => void;
 }
 
 export interface RegisterData {
@@ -42,6 +44,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Check for mock admin in localStorage first
+    const mockAdmin = localStorage.getItem("mockAdminUser");
+    if (mockAdmin) {
+      setUser(JSON.parse(mockAdmin));
+      setLoading(false);
+      return;
+    }
+
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
@@ -164,9 +174,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const logout = async () => {
+    localStorage.removeItem("mockAdminUser");
     await supabase.auth.signOut();
     setUser(null);
     setSession(null);
+  };
+
+  const setMockAdminUser = () => {
+    const mockAdmin: AppUser = {
+      id: "mock-admin-id",
+      email: "admin123",
+      name: "Admin",
+      regNumber: "ADMIN001",
+      role: "admin",
+      isMockAdmin: true,
+    };
+    localStorage.setItem("mockAdminUser", JSON.stringify(mockAdmin));
+    setUser(mockAdmin);
   };
 
   return (
@@ -178,7 +202,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         login,
         register,
         logout,
-        isAuthenticated: !!session && !!user,
+        isAuthenticated: !!user,
+        setMockAdminUser,
       }}
     >
       {children}

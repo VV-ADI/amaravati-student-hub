@@ -1,8 +1,10 @@
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { DashboardCard } from "@/components/DashboardCard";
-import { Users, ClipboardCheck, FileText, TrendingUp } from "lucide-react";
+import { Users, ClipboardCheck, FileText, TrendingUp, UserPlus, BookOpen, Award } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
 interface AttendanceData {
@@ -20,6 +22,7 @@ interface StudentRecord {
 }
 
 export default function AdminDashboard() {
+  const navigate = useNavigate();
   const [stats, setStats] = useState({
     totalStudents: 0,
     avgAttendance: 0,
@@ -126,6 +129,41 @@ export default function AdminDashboard() {
           <h1 className="text-3xl font-bold font-serif text-foreground">Admin Dashboard</h1>
           <p className="text-muted-foreground mt-1">Welcome back! Here's an overview of the system.</p>
         </div>
+
+        {/* Quick Actions */}
+        <Card className="border-accent/30 bg-accent/5">
+          <CardHeader>
+            <CardTitle className="font-serif text-lg">Quick Actions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-3">
+              <Button 
+                onClick={() => navigate("/admin/students")} 
+                className="h-20 flex flex-col gap-2"
+                variant="outline"
+              >
+                <UserPlus className="h-6 w-6" />
+                <span>Manage Students</span>
+              </Button>
+              <Button 
+                onClick={() => navigate("/admin/attendance")} 
+                className="h-20 flex flex-col gap-2"
+                variant="outline"
+              >
+                <BookOpen className="h-6 w-6" />
+                <span>Update Attendance</span>
+              </Button>
+              <Button 
+                onClick={() => navigate("/admin/marks")} 
+                className="h-20 flex flex-col gap-2"
+                variant="outline"
+              >
+                <Award className="h-6 w-6" />
+                <span>Update Marks</span>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Stats Grid */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
